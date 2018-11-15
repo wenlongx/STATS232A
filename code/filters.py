@@ -44,7 +44,7 @@ def get_filters():
     # for sizes 5x5, 7x7, 9x9, 15x15
     # angles 0, 30, 60, 90, 120, 150
     # FILTER NUMBERS: 7 - 16
-    for i in [7]:
+    for i in [7, 9]:
         for j in range(0, 150+1, 30):
             F += gaborfilter(i, j)
 
