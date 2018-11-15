@@ -89,7 +89,11 @@ def main():
             print(f"Filter {selected_filter_num} uses idx: {filter_idx}")
             print(f"  Synth error = {np.linalg.norm(synth_image - image)}")
             print(f"  Synth error = {np.linalg.norm(err)}")
-            io.imsave(f'output/synth_{image_num}_{selected_filter_num}.png', (synth_image.transpose()*32).astype(np.uint))
+            io.imsave(f'output/synth_{image_num}_{selected_filter_num}.png', (synth_image*32).astype(np.uint))
+
+            # stop after 30 filters
+            if selected_filter_num > 29:
+                break
 
         # record which filters were chosen
         print(chosen_filters)
