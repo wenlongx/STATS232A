@@ -7,7 +7,7 @@ def load_lib():
     return ctypes.cdll.LoadLibrary('./libjulesz.so')
 
 
-def get_histogram(lib, image, filters, width, height, num_bins=15, max_intensity=255):
+def get_histogram(lib, image, filters, width, height, num_bins=15, max_intensity=255, min_resp=0, max_resp=8):
 
     num_filters = len(filters)
     [im_width, im_height] = image.shape
@@ -16,19 +16,29 @@ def get_histogram(lib, image, filters, width, height, num_bins=15, max_intensity
 
     c_array = lambda a: (a.__array_interface__['data'][0] + np.arange(a.shape[0]) * a.strides[0]).astype(np.uintp)
     c_int32 = lambda x: x.astype(np.int32)
+    c_float = lambda x: x.astype(np.float_)
     ndpointerpointer = lambda: ndpointer(dtype=np.uintp, ndim=1, flags='C')
 
     getHistogram = lib.getHistogram
     getHistogram.restype = None
     # (const double **filter, const int *width, const int *height, const int num_filters, const int *image, const int im_width, const int im_height, double *response)
-    getHistogram.argtypes = [ndpointerpointer(), ndpointer(ctypes.c_int), ndpointer(ctypes.c_int), ctypes.c_int, ndpointer(ctypes.c_int), ctypes.c_int, ctypes.c_int, ctypes.c_int, ndpointer(ctypes.c_double), ctypes.c_int]
-
-    getHistogram(c_array(filters), c_int32(width), c_int32(height), num_filters, c_int32(image), im_width, im_height, num_bins, response, max_intensity)
-
-    return response
+    getHistogram.argtypes = [ndpointerpointer(), ndpointer(ctypes.c_int), ndpointer(ctypes.c_int), ctypes.c_int, ndpointer(ctypes.c_int), ctypes.c_int, ctypes.c_int, ctypes.c_int, ndpointer(ctypes.c_double), ctypes.c_int, ctypes.c_double, ctypes.c_double]
 
 
-def julesz(lib, responsematrix, filtermatrix, width, height, im_width, im_height, max_intensity=255):
+    response_min = None
+    response_max = None
+
+    # we pass in -1 as the min to indicate that we want the min max to be placed in the first 2 values of response array
+    if (min_resp == None and max_resp == None):
+        getHistogram(c_array(filters), c_int32(width), c_int32(height), num_filters, c_int32(image), im_width, im_height, num_bins, response, max_intensity, np.double(0), np.double(0))
+        response_min = response.flatten()[0]
+        response_max = response.flatten()[1]
+        return response_min, response_max
+    else:
+        getHistogram(c_array(filters), c_int32(width), c_int32(height), num_filters, c_int32(image), im_width, im_height, num_bins, response, max_intensity, np.double(min_resp), np.double(max_resp))
+        return response
+
+def julesz(lib, responsematrix, filtermatrix, width, height, im_width, im_height, max_intensity=255, min_resp=0, max_resp=8):
 
     num_bins = responsematrix.shape[1]
     max_size = filtermatrix.shape[1]
@@ -52,9 +62,9 @@ def julesz(lib, responsematrix, filtermatrix, width, height, im_width, im_height
     Julesz = lib.Julesz
     Julesz.restype = None
     # (const double **filters, const int *width, const int *height, const int num_filters, const int num_bins, const double **orig_response, int *synthesized, double *final_response)
-    Julesz.argtypes = [ndpointerpointer(), ndpointer(ctypes.c_int), ndpointer(ctypes.c_int), ctypes.c_int, ctypes.c_int, ndpointerpointer(), ndpointer(ctypes.c_int), ndpointer(ctypes.c_double), ctypes.c_int]
+    Julesz.argtypes = [ndpointerpointer(), ndpointer(ctypes.c_int), ndpointer(ctypes.c_int), ctypes.c_int, ctypes.c_int, ndpointerpointer(), ndpointer(ctypes.c_int), ndpointer(ctypes.c_double), ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double]
 
-    Julesz(c_array(filters), c_int32(width), c_int32(height), num_filters, num_bins, c_array(orig_response), synthesized, syn_response, im_width, im_height, max_intensity)
+    Julesz(c_array(filters), c_int32(width), c_int32(height), num_filters, num_bins, c_array(orig_response), synthesized, syn_response, im_width, im_height, max_intensity, np.double(min_resp), np.double(max_resp))
 
     return synthesized, syn_response
 
@@ -76,11 +86,19 @@ def main():
 
     n = 7
 
-    h2 = get_histogram(lib, image, filters[n:n+1], width[n:n+1], height[n:n+1])
-    syn2, synresp = julesz(lib, h2.reshape(1, 15), filters[n:n+1], width[n:n+1], height[n:n+1], im_w, im_h, max_intensity=max_intensity)
+    mi, ma = get_histogram(lib, image, filters[n:n+1], width[n:n+1], height[n:n+1], min_resp=None, max_resp=None)
+
+    print(mi, ma)
+
+    h2 = get_histogram(lib, image, filters[n:n+1], width[n:n+1], height[n:n+1], min_resp=mi, max_resp=ma)
+
+    print(h2)
+
+    syn2, synresp = julesz(lib, h2.reshape(1, 15), filters[n:n+1], width[n:n+1], height[n:n+1], im_w, im_h, max_intensity=max_intensity, min_resp=mi, max_resp=ma)
 
     print(h2)
     print(synresp)
+    print(np.linalg.norm(h2 - synresp))
 
 
 if __name__ == '__main__':

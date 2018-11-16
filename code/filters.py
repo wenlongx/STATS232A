@@ -22,6 +22,7 @@ def get_filters():
     # laplacian of the gaussian filter
     # for sizes 3x3, 5x5, 7x7, 9x9
     # FILTER NUMBERS: 2 - 4
+    #F += [fspecial_log((i-2)*2+1, (i-2)/3) for i in [3, 5, 7, 9]]
     F += [fspecial_log((i-2)*2+1, (i-2)/3) for i in [3, 5, 7, 9]]
 
     # dirac delta
@@ -44,7 +45,7 @@ def get_filters():
     # for sizes 5x5, 7x7, 9x9, 15x15
     # angles 0, 30, 60, 90, 120, 150
     # FILTER NUMBERS: 7 - 16
-    for i in [7, 9]:
+    for i in [7, 9, 15]:
         for j in range(0, 150+1, 30):
             F += gaborfilter(i, j)
 

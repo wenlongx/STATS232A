@@ -52,6 +52,13 @@ def main():
         # synth_image = np.rint(np.random.uniform(0, 7, (im_w, im_h))).astype(np.int32)
         print("================== Image ==================")
 
+
+        filter_ranges = []
+        for filter_num in range(len(filters)):
+            # if we don't specify a range here, it returns the range of the hist instead
+            min_resp, max_resp = get_histogram(lib, image, filters[[filter_num], :], width[[filter_num]], height[[filter_num]], max_intensity=max_intensity, min_resp=None, max_resp=None)
+            filter_ranges.append((min_resp, max_resp))
+
         # while the filter bank is not empty
         while len(unselected_filters) > 0:
 
@@ -60,9 +67,9 @@ def main():
             filter_errs = []
             # calculate the filter response for each unselected filter
             for filter_num in unselected_filters:
-                h1 = get_histogram(lib, image, filters[[filter_num], :], width[[filter_num]], height[[filter_num]], max_intensity=max_intensity)
+                h1 = get_histogram(lib, image, filters[[filter_num], :], width[[filter_num]], height[[filter_num]], max_intensity=max_intensity, min_resp=filter_ranges[filter_num][0], max_resp=filter_ranges[filter_num][1])
 
-                h2 = get_histogram(lib, synth_image, filters[[filter_num], :], width[[filter_num]], height[[filter_num]], max_intensity=max_intensity)
+                h2 = get_histogram(lib, synth_image, filters[[filter_num], :], width[[filter_num]], height[[filter_num]], max_intensity=max_intensity, min_resp=filter_ranges[filter_num][0], max_resp=filter_ranges[filter_num][1])
 
                 # TODO: for the errors, match the tails more closely than the centers
                 # should change code in jules.c with the stuff from 3b
@@ -80,7 +87,7 @@ def main():
             print(f"{chosen_filters} {unselected_filters}")
 
             # synthesize new image
-            h = get_histogram(lib, image, filters[chosen_filters, :], width[chosen_filters], height[chosen_filters], max_intensity=max_intensity)
+            h = get_histogram(lib, image, filters[chosen_filters, :], width[chosen_filters], height[chosen_filters], max_intensity=max_intensity, min_resp=filter_ranges[filter_num][0], max_resp=filter_ranges[filter_num][1])
             synth_image, err = julesz(lib, h.reshape(len(chosen_filters), -1), filters[chosen_filters, :], width[chosen_filters], height[chosen_filters], im_w, im_h, max_intensity=max_intensity)
             synth_image = synth_image.reshape((im_w, im_h))
 
@@ -89,10 +96,10 @@ def main():
             print(f"Filter {selected_filter_num} uses idx: {filter_idx}")
             print(f"  Synth error = {np.linalg.norm(synth_image - image)}")
             print(f"  Synth error = {np.linalg.norm(err)}")
-            io.imsave(f'output/synth_{image_num}_{selected_filter_num}.png', (synth_image*32).astype(np.uint))
+            io.imsave(f'output/temp_synth_{image_num}_{selected_filter_num}.png', (synth_image*32).astype(np.uint))
 
-            # stop after 30 filters
-            if selected_filter_num > 29:
+            # stop after 20 filters
+            if selected_filter_num > 19:
                 break
 
         # record which filters were chosen

@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <stdlib.h>
 
-void getHistogram(const double **filter, const int *width, const int *height, const int num_filters, const int *image, const int im_width, const int im_height, int num_bins, double *response, int max_intensity)
+void getHistogram(const double **filter, const int *width, const int *height, const int num_filters, const int *image, const int im_width, const int im_height, int num_bins, double *response, int max_intensity, double min_resp, double max_resp)
 {
 	int i;
 	int j;
@@ -13,8 +13,22 @@ void getHistogram(const double **filter, const int *width, const int *height, co
 	int index;
 	int width_index;
 	int height_index;
-	double mult = (double)num_bins / max_intensity; //This calculation is not exact. mult is the width of each bin of histogram. It should be decided by the minimum and maximum of filter responses.
-	double half_num = (double)num_bins / 2;
+
+    int get_range;
+    double resp_min;
+    double resp_max;
+
+    if (min_resp == 0.0 && max_resp == 0.0) {
+        min_resp = 0.0;
+        max_resp = 8.0;
+        get_range = 1;
+    }
+    else {
+        get_range = 0;
+    }
+
+    double mult = (double) num_bins / (max_resp - min_resp); //This calculation is not exact. mult is the width of each bin of histogram. It should be decided by the minimum and maximum of filter responses.
+    double half_num = (double) (max_resp - min_resp) / 2;
 
 	double *filtered;
 
@@ -26,6 +40,7 @@ void getHistogram(const double **filter, const int *width, const int *height, co
 	for (i = 0; i < num_filters; i++)
 	{
 		for (j = 0; j < im_height; j++)
+        {
 			for (k = 0; k < im_width; k++)
 			{
 				index = j * im_width + k;
@@ -50,20 +65,41 @@ void getHistogram(const double **filter, const int *width, const int *height, co
 					}
 				}
 			}
-
+        }
 
 		for (j = 0; j < im_width * im_height; j++)
 		{
 			index = i * num_bins + mult * filtered[j] + half_num;
+            if (index < 0)
+                continue;
 			response[index] = response[index] + 1;
 		}
+
+        if (get_range > 0) {
+            resp_min = filtered[0];
+            resp_max = filtered[0];
+            for (j = 0; j < im_width * im_height; j++) {
+                if (filtered[j] < resp_min) {
+                    resp_min = filtered[j];
+                }
+                else if (filtered[j] > resp_max) {
+                    resp_max = filtered[j];
+                }
+            }
+            response[0] = resp_min;
+            response[1] = resp_max;
+            break;
+        }
+
 	}
 
 	free(filtered);
 
-
-	for (i = 0; i < num_bins * num_filters; i++)
-		response[i] = response[i] / im_width / im_height;
+    if (get_range <= 0) {
+        for (i = 0; i < num_bins * num_filters; i++) {
+            response[i] = response[i] / im_width / im_height;
+        }
+    }
 }
 
 void getHistogram1(const double *filter, const int width, const int height, const int *image, int *response, const int num_bins, double *filtered, int im_width, int im_height, int max_intensity)
@@ -114,7 +150,55 @@ void getHistogram1(const double *filter, const int width, const int height, cons
 	}
 }
 
-void Julesz(const double **filters, const int *width, const int *height, const int num_filters, const int num_bins, const double **orig_response, int *synthesized, double *final_response, int im_width, int im_height, int max_intensity)
+void getHistogram2(const double *filter, const int width, const int height, const int *image, int *response, const int num_bins, double *filtered, int im_width, int im_height, int max_intensity, double max_resp, double min_resp)
+{
+	int i;
+	int j;
+	int k;
+	int l;
+	int index;
+	int width_index;
+	int height_index;
+	double mult = (double)num_bins / (max_resp - min_resp);
+	double half_num = (double) (max_resp - min_resp) / 2;
+
+	for (i = 0; i < im_height; i++)
+		for (j = 0; j < im_width; j++)
+		{
+			index = i * im_width + j;
+			filtered[index] = 0;
+			for (k = 0; k < height; k++)
+			{
+				height_index = i + k;
+				if (height_index < 0)
+					height_index = height_index + im_height;
+				else if (height_index >= im_height)
+					height_index = height_index - im_height;
+
+				for (l = 0; l < width; l++)
+				{
+					width_index = j + l;
+					if (width_index < 0)
+						width_index = width_index + im_width;
+					else if (width_index >= im_width)
+						width_index = width_index - im_width;
+
+					filtered[index] = filtered[index] + filter[k*width+l] * image[height_index*im_width+width_index];
+				}
+			}
+		}
+
+	for (i = 0; i < num_bins; i++)
+		response[i] = 0;
+
+	for (i = 0; i < im_width * im_height; i++)
+	{
+		index = mult * filtered[i] + half_num;
+		response[index] = response[index] + 1;
+	}
+}
+
+void Julesz(const double **filters, const int *width, const int *height, const int num_filters, const int num_bins, const double **orig_response, int *synthesized, double *final_response, int im_width, int im_height, int max_intensity, double min_resp, double max_resp)
 {
 	time_t start;
 	time_t end;
@@ -137,8 +221,9 @@ void Julesz(const double **filters, const int *width, const int *height, const i
 	int minimum;
 
 	double T;
-	double mult = (double)num_bins / max_intensity; //This calculation is not exact. mult is the width of each bin of histogram. It should be decided by the minimum and maximum of filter responses.
-	double half_num = (double)num_bins / 2;
+
+    double mult = (double) num_bins / (max_resp - min_resp); //This calculation is not exact. mult is the width of each bin of histogram. It should be decided by the minimum and maximum of filter responses.
+    double half_num = (double) mult / 2;
 	double random_num;
 	double sum_probs;
 	double sum_error;
@@ -160,7 +245,7 @@ void Julesz(const double **filters, const int *width, const int *height, const i
 	{
 		syn_filtered[i] = (double *)malloc(im_width * im_height * sizeof(double));
 		diff_response[i] = (int *)malloc(num_bins * sizeof(int));
-		getHistogram1(filters[i], width[i], height[i], synthesized, syn_response, num_bins, syn_filtered[i], im_width, im_height, max_intensity);
+		getHistogram2(filters[i], width[i], height[i], synthesized, syn_response, num_bins, syn_filtered[i], im_width, im_height, max_intensity, min_resp, max_resp);
 
 		for (j = 0; j < num_bins; j++)
 			diff_response[i][j] = orig_response[i][j] - syn_response[j];
