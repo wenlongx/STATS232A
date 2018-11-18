@@ -46,7 +46,8 @@ def main():
         chosen_width = []
         chosen_height = []
         unselected_filters = range(len(filters))
-        synth_errors = []
+        synth_errors_1 = []
+        synth_errors_2 = []
 
         synth_image = np.random.randint(0, 8, size=(im_w, im_h)).astype(np.int32)
         # synth_image = np.rint(np.random.uniform(0, 7, (im_w, im_h))).astype(np.int32)
@@ -81,22 +82,36 @@ def main():
 
             # synthesize new image
             h = get_histogram(lib, image, filters[chosen_filters, :], width[chosen_filters], height[chosen_filters], max_intensity=max_intensity)
-            synth_image, err = julesz(lib, h.reshape(len(chosen_filters), -1), filters[chosen_filters, :], width[chosen_filters], height[chosen_filters], im_w, im_h, max_intensity=max_intensity)
+
+            synth_image, synth_resp = julesz(lib, h.reshape(len(chosen_filters), -1), filters[chosen_filters, :], width[chosen_filters], height[chosen_filters], im_w, im_h, max_intensity=max_intensity)
             synth_image = synth_image.reshape((im_w, im_h))
 
-            synth_errors.append(err)
-
             print(f"Filter {selected_filter_num} uses idx: {filter_idx}")
-            print(f"  Synth error = {np.linalg.norm(synth_image - image)}")
-            print(f"  Synth error = {np.linalg.norm(err)}")
+            print(f"  Img diff = {np.linalg.norm(synth_image - image)}")
+            print(f"  Hist err = {np.linalg.norm(h - synth_resp)}")
+            print(f"  avg bin err = {np.mean(np.dot(np.abs(h - synth_resp).reshape(len(chosen_filters), -1), bin_weights)/15)}")
             io.imsave(f'output/synth_{image_num}_{selected_filter_num}.png', (synth_image*32).astype(np.uint))
 
-            # stop after 30 filters
-            if selected_filter_num > 29:
+            synth_errors_1.append(np.linalg.norm(synth_image - image))
+            synth_errors_2.append(np.mean(np.dot(np.abs(h - synth_resp).reshape(len(chosen_filters), -1), bin_weights)/15))
+
+            with open(f"output/errors_{image_num}.txt", "a") as f:
+                f.write(f"{selected_filter_num}, {np.linalg.norm(synth_image - image)}, {np.linalg.norm(h - synth_resp)}, {np.mean(np.dot(np.abs(h - synth_resp).reshape(len(chosen_filters), -1), bin_weights)/15)}\n")
+
+            # stop after 20 filters
+            if selected_filter_num > 0:
                 break
 
+        # record errors
+        with open(f"output/finalerrors1_{image_num}.txt", "w") as f:
+            for err in synth_errors_1:
+                f.write(str(err) + "\n")
+        with open(f"output/finalerrors2_{image_num}.txt", "w") as f:
+            for err in synth_errors_2:
+                f.write(str(err) + "\n")
+        break
+
         # record which filters were chosen
-        print(chosen_filters)
         with open(f"chosen_filters_{image_num}.txt", "w") as f:
             f.write(str(chosen_filters))
 
