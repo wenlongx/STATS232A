@@ -99,7 +99,7 @@ def main():
                 f.write(f"{selected_filter_num}, {np.linalg.norm(synth_image - image)}, {np.linalg.norm(h - synth_resp)}, {np.mean(np.dot(np.abs(h - synth_resp).reshape(len(chosen_filters), -1), bin_weights)/15)}\n")
 
             # stop after 20 filters
-            if selected_filter_num > 0:
+            if selected_filter_num > 23:
                 break
 
         # record errors
